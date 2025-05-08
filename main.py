@@ -9,12 +9,25 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
-
-
-
 query_dict = {
-    "acessos":"""SELECT 'TESTE', 1;""",             
-    "usuarios":"""SELECT 'TESTE', 2;"""
+    "projetos":"""select A.nome,
+                        A.descricao,
+                        A.orcamento,
+                        to_char(data_inicio,'DD/MM/YYYY') as DATA_INICIO,
+                        to_char(data_termino ,'DD/MM/YYYY') as DATA_TERMINO,
+                        data_termino::date- data_inicio::date as qtd_dias
+                        from public.projeto A""",
+                        
+    "funcionarios":"""SELECT A.NOME AS NOME_FUNCIONARIO,
+                             A.CARGO,
+                             B.NOME AS NOME_DEPARTAMENTO,
+                             B.LOCALIZACAO,
+                             C.NOME AS NOME_PROJETO,
+                             C.DESCRICAO
+                        FROM FUNCIONARIO A
+                        JOIN DEPARTAMENTO B ON A.id_departamento  = B.id_departamento
+                        JOIN PROJETO C ON A.id_departamento = C.id_departamento_responsavel;
+                    """
 }
 
 
@@ -26,9 +39,9 @@ DATABASE   = os.getenv("DATABASE")
 DB_HOST    = os.getenv("HOST")
 DB_PORT    = os.getenv("PORT")
 
-REMETENTE_EMAIL =  os.getenv("PORT")
-REMETENTE_PORTA = os.getenv("PORT")
-REMETENTE_SENHA = os.getenv("PORT")
+REMETENTE_EMAIL =  os.getenv("REMETENTE")
+REMETENTE_PORTA = os.getenv("REMETENTE_PORTA")
+REMETENTE_SENHA = os.getenv("REMETENTE_SENHA")
 
 assunto_email = 'Relatorios semanais'
 pasta_relatorio = 'relatoriosEmail'
@@ -36,17 +49,9 @@ pasta_relatorio = 'relatoriosEmail'
 
 
 
-
-
-def conexao_db_postgres() -> engine.Engine:
-    # Cria a engine de conexão com o banco.
-    connect = engine.url.URL("postgresql+psycopg2",
-                                 username=DB_USUARIO,
-                                 password=DB_SENHA,
-                                 host=DB_HOST,
-                                 port=DB_PORT,
-                                 database=DATABASE)
-    return create_engine(connect)
+def conexao_db_postgres():
+    string = f"postgresql+psycopg2://{DB_USUARIO}:{DB_SENHA}@{DB_HOST}/{DATABASE}"
+    return create_engine(string)
 
 
 def cria_pasta_relatorio(pasta_relatorio:str = pasta_relatorio) -> None:
@@ -73,17 +78,16 @@ def arquivos_csv_zipados(pasta_relatorio:str = pasta_relatorio) -> None:
         df = read_sql_query(sql=value, con=engine)
         
         corpo_email += f'{key.upper()} possui {df.shape[0]} linhas.\n'
-
         df.to_csv(f'{pasta_relatorio}/{key}.csv',index=False)
     
     corpo_email += "\n\n Atencionsamente; \n\n"
+    
    # Zipa a pasta de relatorios
     make_archive(pasta_relatorio, 'zip', pasta_relatorio)
 
 
 def enviar_email(dict_remetente: dict, destinatarios: list, assunto: str, corpo_mensagem: str,pasta_relatorio:str = pasta_relatorio) -> None:
     """summary
-
     Args:
         destinatarios (list): recebedores do email.
         assunto (str): assunto do email
@@ -103,7 +107,7 @@ def enviar_email(dict_remetente: dict, destinatarios: list, assunto: str, corpo_
     mensagem.attach(MIMEText(corpo_mensagem,'plain'))
 
     print(f'==== Anexando a pasta {pasta_relatorio}.zip !!!!  ====\n')
-    with open('relatoriosOiSemanal.zip.', 'rb') as file:
+    with open(pasta_relatorio+'.zip', 'rb') as file:
         mensagem.attach(MIMEApplication(file.read(), Name=f'{pasta_relatorio}.zip'))
     
     try:
@@ -132,8 +136,8 @@ def main():
                                     'senha':REMETENTE_SENHA
                                 },
                  destinatarios=[
-                                    'email1@gmail.com',
-                                    'email2@gmail.com'
+                                    'email_exemplo1@gmail.com',
+                                    'email_exemplo1@gmail.com'
                                 ],
                  assunto=assunto_email,
                  corpo_mensagem=corpo_email,
